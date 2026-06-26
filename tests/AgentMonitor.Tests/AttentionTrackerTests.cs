@@ -38,6 +38,29 @@ public class AttentionTrackerTests
     }
 
     [Fact]
+    public void Awaiting_session_without_a_pid_stays_green_and_is_never_focus_cleared()
+    {
+        // Codex sessions carry no ProcessId, so focus can never match their lineage.
+        var tracker = new AttentionTracker(Fresh);
+        var session = new AgentSession
+        {
+            ProviderId = "codex",
+            SessionId = "c1",
+            Title = "c1",
+            Status = SessionStatus.AwaitingInput,
+            LastActivity = Now.AddSeconds(-30),
+            ProcessId = null,
+        };
+
+        // Even with a foreground window and process map present, it can't be cleared.
+        var (color, needsYou) = tracker.Evaluate(
+            new[] { session }, Now, () => 200, () => new Dictionary<int, int> { [100] = 200 });
+
+        Assert.Equal(TrayColor.Green, color);
+        Assert.Single(needsYou);
+    }
+
+    [Fact]
     public void Working_only_is_amber()
     {
         var tracker = new AttentionTracker(Fresh);

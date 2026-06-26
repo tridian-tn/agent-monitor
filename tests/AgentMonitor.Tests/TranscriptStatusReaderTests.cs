@@ -66,4 +66,24 @@ public class TranscriptStatusReaderTests : IDisposable
         Assert.Equal(SessionStatus.AwaitingInput, status);
         Assert.Equal("idle", detail);
     }
+
+    [Fact]
+    public void Empty_transcript_does_not_crash_or_report_finished()
+    {
+        var path = Write("", DateTime.UtcNow.AddMinutes(-2));
+        var (_, detail, _) = _reader.Read(path, Window, Idle);
+        Assert.NotEqual("finished", detail);
+    }
+
+    [Fact]
+    public void Transcript_with_no_assistant_record_is_not_reported_finished()
+    {
+        // Only a user record, at rest — must never be mistaken for a completed turn.
+        var path = Write(
+            "{\"type\":\"user\",\"message\":{\"role\":\"user\"}}\n",
+            DateTime.UtcNow.AddMinutes(-2));
+
+        var (_, detail, _) = _reader.Read(path, Window, Idle);
+        Assert.NotEqual("finished", detail);
+    }
 }

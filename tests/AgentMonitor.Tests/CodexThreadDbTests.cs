@@ -74,4 +74,32 @@ public class CodexThreadDbTests : IDisposable
         var scanner = new ThreadDbScanner(new CodexPaths(Path.Combine(_root, "nonexistent")));
         Assert.Null(scanner.TryRecentSessions(TimeSpan.FromMinutes(15), Now));
     }
+
+    [Fact]
+    public void Db_present_but_with_unexpected_schema_returns_null()
+    {
+        // Schema drift (no threads table) must degrade to the filesystem fallback,
+        // not throw.
+        var driftRoot = Path.Combine(Path.GetTempPath(), "amtdb-drift-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(driftRoot);
+        try
+        {
+            using (var con = new SqliteConnection($"Data Source={Path.Combine(driftRoot, "state_5.sqlite")}"))
+            {
+                con.Open();
+                using var cmd = con.CreateCommand();
+                cmd.CommandText = "CREATE TABLE something_else(x INTEGER)";
+                cmd.ExecuteNonQuery();
+            }
+            SqliteConnection.ClearAllPools();
+
+            var scanner = new ThreadDbScanner(new CodexPaths(driftRoot));
+            Assert.Null(scanner.TryRecentSessions(TimeSpan.FromMinutes(15), Now));
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            try { Directory.Delete(driftRoot, true); } catch { }
+        }
+    }
 }
