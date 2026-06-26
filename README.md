@@ -1,11 +1,7 @@
 # Agent Monitor
 
 A Windows system-tray **traffic light** for local LLM coding agents. One coloured
-icon tells you, at a glance, whether any session needs you:
-
-- 🔴 **Red** — nothing running.
-- 🟠 **Amber** — at least one session is working, none are waiting on you.
-- 🟢 **Green** — a session has finished / is waiting on you (or nothing is working).
+icon tells you, at a glance, whether any session needs you.
 
 It currently monitors **Claude Code** — both the desktop app and the terminal CLI —
 and is built so other tools (e.g. Codex) can be added behind one interface.
@@ -14,14 +10,17 @@ and is built so other tools (e.g. Codex) can be added behind one interface.
 
 # Getting started (first-time users)
 
-You don't need to build anything or install a runtime — the download is
-self-contained.
+**Prerequisite:** the **.NET 10 Desktop Runtime** (x64). If you don't have it,
+get it from <https://dotnet.microsoft.com/download/dotnet/10.0> (the "Desktop
+Runtime" download). Running `AgentMonitor.exe` without it shows a prompt with a
+link.
 
 ### 1. Download and run
 
 1. Go to the [**Releases**](../../releases) page and download the latest
    `AgentMonitor-<version>-win-x64.zip`.
-2. Unzip it anywhere (e.g. `C:\Tools\AgentMonitor`). Keep the two files together:
+2. Unzip it anywhere (e.g. `C:\Tools\AgentMonitor`). Keep the contents together —
+   the two executables you'll use are:
    - `AgentMonitor.exe` — the tray app.
    - `AgentMonitor.HookSink.exe` — a small helper used by precise mode (below).
 3. Double-click **`AgentMonitor.exe`**. A coloured dot appears in your system tray
@@ -167,9 +166,9 @@ builds override the version from the git tag (see below).
 - **CI** (`.github/workflows/ci.yml`) — builds and runs the tests on every push to
   `main` and every PR (windows-latest, .NET 10).
 - **Release** (`.github/workflows/release.yml`) — pushing a `v*` tag (e.g.
-  `v0.2.0`) runs the tests, publishes self-contained single-file `win-x64` builds of
-  the tray and sink, zips them, and creates a GitHub Release with the version taken
-  from the tag.
+  `v0.2.0`) runs the tests, publishes framework-dependent `win-x64` builds of the
+  tray and sink (requires the .NET 10 Desktop Runtime on the user's machine), zips
+  them, and creates a GitHub Release with the version taken from the tag.
 
 ```sh
 git tag v0.2.0
