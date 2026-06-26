@@ -1,37 +1,102 @@
 # Agent Monitor
 
-A Windows system-tray "traffic light" for local LLM coding agents. One coloured
-icon tells you, at a glance, whether any session wants your attention.
+A Windows system-tray **traffic light** for local LLM coding agents. One coloured
+icon tells you, at a glance, whether any session needs you:
 
-- 🔴 **Red** — no live sessions (the tool isn't running).
-- 🟠 **Amber** — at least one session is working and none are awaiting you.
+- 🔴 **Red** — nothing running.
+- 🟠 **Amber** — at least one session is working, none are waiting on you.
 - 🟢 **Green** — a session has finished / is waiting on you (or nothing is working).
 
-Left-click the icon's menu to see every session, its state, and which tool /
-entrypoint it came from. The green/amber meaning is switchable via **Policy**.
+It currently monitors **Claude Code** — both the desktop app and the terminal CLI —
+and is built so other tools (e.g. Codex) can be added behind one interface.
 
-Built on **.NET 10** / WinForms. The first provider is **Claude Code** (covering
-both the desktop app and the terminal CLI); the architecture is provider-agnostic
-so other tools (e.g. Codex) slot in behind one interface.
+---
+
+# Getting started (first-time users)
+
+You don't need to build anything or install a runtime — the download is
+self-contained.
+
+### 1. Download and run
+
+1. Go to the [**Releases**](../../releases) page and download the latest
+   `AgentMonitor-<version>-win-x64.zip`.
+2. Unzip it anywhere (e.g. `C:\Tools\AgentMonitor`). Keep the two files together:
+   - `AgentMonitor.exe` — the tray app.
+   - `AgentMonitor.HookSink.exe` — a small helper used by precise mode (below).
+3. Double-click **`AgentMonitor.exe`**. A coloured dot appears in your system tray
+   (click the **^** arrow by the clock if you don't see it).
+
+There's no window — the app lives entirely in the tray. **Right-click the icon**
+for the menu.
+
+### 2. Read the light
+
+| Colour | Meaning |
+|:---:|---|
+| 🔴 Red | No Claude session is running. |
+| 🟠 Amber | Something is working; nothing is waiting on you yet. |
+| 🟢 Green | A session has finished or is waiting for you — go look. |
+
+Right-click → the menu lists every session, its state, and its folder, so you can
+see *which* one is ready.
+
+### 3. (Recommended) Turn on precise mode
+
+Out of the box the app infers status by watching Claude's files, which is good but
+occasionally shows green during a long build. **Precise mode** makes Claude Code
+report its status exactly (including "waiting for your permission").
+
+- Right-click the icon → **Precise mode (hooks) → Install hooks**.
+
+This adds a few hooks to your Claude Code settings (with an automatic backup) and
+takes effect on each session's next turn. You can **Remove hooks** any time from the
+same menu. It's completely optional — the app works without it.
+
+### 4. Optional extras
+
+- **Notify when awaiting** *(on by default)* — pops a balloon the moment a session
+  finishes and is waiting for you. Toggle it from the right-click menu.
+- **Start with Windows** — right-click → tick it to launch the tray automatically
+  at sign-in.
+- **About…** — shows the version you're running.
+
+### Uninstalling
+
+Remove hooks first (right-click → Precise mode → **Remove hooks**), untick **Start
+with Windows**, then **Exit** and delete the folder. Nothing else is left behind
+except a small status folder at `%USERPROFILE%\.claude\agent-monitor` you can delete.
+
+---
+
+# Technical notes
+
+Everything below is for people building, extending, or curious about how it works.
+Skip it if you just want to run the app.
+
+## Build from source
+
+Requires the **.NET 10 SDK**.
+
+```sh
+dotnet build -c Release
+dotnet run --project src/AgentMonitor.Tray -c Release
+dotnet test                      # run the unit tests
+```
 
 ## Projects
 
 | Project | Target | Responsibility |
 |---|---|---|
 | `AgentMonitor.Core` | `net10.0` | Provider-agnostic models, the `ISessionProvider` interface, the colour policies and the `StatusAggregator`. No tool- or OS-specific code. |
-| `AgentMonitor.Providers.ClaudeCode` | `net10.0` | Reads `~/.claude` (session registry + transcripts) and maps Claude Code sessions onto the shared model. **All** Claude-internal format knowledge lives in its `Internal/` folder. |
+| `AgentMonitor.Providers.ClaudeCode` | `net10.0` | Reads `~/.claude` (session registry + transcripts + hook markers) and maps Claude Code sessions onto the shared model. **All** Claude-internal format knowledge lives in its `Internal/` folder. |
 | `AgentMonitor.Providers.Codex` | `net10.0` | Stub showing the extension point — implement and drop in. |
-| `AgentMonitor.Tray` | `net10.0-windows` | The WinForms tray app: icon rendering, polling timer, context menu. |
+| `AgentMonitor.HookSink` | `net10.0` | Tiny exe invoked by Claude Code hooks; writes per-session status markers. |
+| `AgentMonitor.Tray` | `net10.0-windows` | WinForms tray app: icon rendering, polling, menu, notifications, hook installer. |
+| `tests/AgentMonitor.Tests` | `net10.0` | xUnit tests for the status logic and the hook installer. |
 
-## Build & run
-
-```sh
-dotnet build -c Release
-dotnet run --project src/AgentMonitor.Tray -c Release
-```
-
-The app has no installer yet; it runs as a tray-only process (no main window).
-Exit from the icon's context menu.
+`tools/smoke` is a console (not in the solution) that prints what the Claude
+provider sees live — handy for sanity checks against real sessions.
 
 ## How status is detected (Claude Code)
 
@@ -39,58 +104,48 @@ Claude Code leaves enough state on disk to monitor it read-only, no API needed:
 
 1. **`~/.claude/sessions/<PID>.json`** — a live registry, one file per interactive
    session, written by every session regardless of entrypoint (`"cli"` for the
-   terminal, `"claude-desktop"` for the desktop app). Gives the session list,
-   cwd, PID and `kind`. We filter to `kind == "interactive"` and verify the PID is
-   a live `claude` process (guards against stale files and PID reuse).
+   terminal, `"claude-desktop"` for the desktop app). Gives the session list, cwd,
+   PID and `kind`. We keep `kind == "interactive"` and verify the PID is a live
+   `claude` process (guards against stale files and PID reuse).
 2. **`~/.claude/projects/<slug>/<sessionId>.jsonl`** — the transcript. Status is
    derived from write-recency plus the most recent **assistant** record's
    `stop_reason` (`end_turn` = finished; otherwise recent growth = working).
 
-### The honest caveat
+### The heuristic's limit
 
 An idle interactive session often rests at a `tool_use` record (paused at a
 permission prompt), not a clean `end_turn`. The transcript alone **cannot** always
 distinguish "blocked, waiting on you" from "a long tool is still running". The
-heuristic (`TranscriptStatusReader`) treats a session quiet for ≥ 30s as
-*awaiting you*, which fits the "tell me when it wants me" goal but will
-occasionally show green during a long build/test run.
+heuristic treats a session quiet for ~30s as *awaiting you* — which fits the goal
+but can show green during a long build. **Precise mode removes this ambiguity.**
 
-**Precise mode (below) removes this ambiguity.**
+### Precise mode (hooks)
 
-## Precise mode (hooks)
-
-Enable it from the tray menu → **Precise mode (hooks) → Install hooks**. This adds
-four hooks to your user `settings.json` (non-destructively, with a
-`settings.json.bak` backup):
+Installing hooks (tray menu, or by hand in `settings.json`) wires four events to
+`AgentMonitor.HookSink.exe`, which writes a marker per session under
+`~/.claude/agent-monitor/status/`:
 
 | Hook event | Meaning |
 |---|---|
 | `UserPromptSubmit` | a turn started → **working** |
 | `Stop` | the turn finished → **awaiting you** |
-| `Notification` | Claude needs attention (permission / idle) → **awaiting you** |
+| `Notification` | needs attention (permission / idle) → **awaiting you** |
 | `SessionEnd` | session ended → marker cleared |
 
-Each hook runs `AgentMonitor.HookSink.exe`, a tiny fast executable that reads the
-hook payload and writes a per-session marker under
-`~/.claude/agent-monitor/status/`. These fire about once per turn, so the overhead
-is negligible — we deliberately do **not** hook per-tool events.
+These fire ~once per turn, so overhead is negligible (we deliberately don't hook
+per-tool events). `HookStatusInterpreter` layers the event over transcript
+recency: if the transcript grows *after* the last event, the session has resumed
+(e.g. a prompt was approved), so it reports *working* rather than a stale *awaiting
+you*. With no marker present it falls back to the heuristic, so the app works
+either way.
 
-`HookStatusInterpreter` then layers the hook event over transcript recency: if the
-transcript grows *after* the last hook event, the session has resumed work (e.g. a
-permission prompt was approved), so it reports *working* rather than a stale
-*awaiting you*. When no hook marker exists (hooks off, or none fired yet), it falls
-back to the transcript heuristic — so the app works either way.
+Background/"fleet" sessions additionally carry an explicit `tempo`/`needs` status,
+which the interpreter prefers when present. All three sources sit behind
+`ISessionStatusInterpreter` without touching the tray.
 
-A third source is read automatically when present:
-
-- **Daemon `tempo`/`needs`** — background/"fleet" sessions already carry an
-  explicit `tempo` (`active`/`idle`/`blocked`) and `needs` string.
-
-All three sources sit behind `ISessionStatusInterpreter` without touching the tray.
-
-> These are **undocumented internal** files. They're stable today (Claude Code
-> 2.1.x) but could change in an update — which is why every byte of that format
-> knowledge is confined to `AgentMonitor.Providers.ClaudeCode/Internal/`.
+> These are **undocumented internal** files, stable as of Claude Code 2.1.x but
+> liable to change — which is why every byte of that format knowledge is confined
+> to `AgentMonitor.Providers.ClaudeCode/Internal/`.
 
 ## Adding a provider (e.g. Codex)
 
@@ -98,15 +153,25 @@ All three sources sit behind `ISessionStatusInterpreter` without touching the tr
    state and mapping it onto `SessionStatus`.
 2. Add it to the provider list in `TrayApplicationContext`.
 
-That's it — the policies, aggregator and tray are unchanged. See
+The policies, aggregator and tray are unchanged. See
 `AgentMonitor.Providers.Codex/CodexProvider.cs` for the skeleton.
 
-## Dev diagnostic
+## Versioning
 
-`tools/smoke` is a small console (not part of the solution) that prints what the
-Claude provider currently sees and the colour each policy yields — handy for
-sanity-checking the heuristic against live sessions:
+`Directory.Build.props` sets a base `VersionPrefix` and embeds the short git commit
+into `InformationalVersion` (e.g. `0.1.0+ab12cd3`), shown in the About box. Release
+builds override the version from the git tag (see below).
+
+## CI / releases
+
+- **CI** (`.github/workflows/ci.yml`) — builds and runs the tests on every push to
+  `main` and every PR (windows-latest, .NET 10).
+- **Release** (`.github/workflows/release.yml`) — pushing a `v*` tag (e.g.
+  `v0.2.0`) runs the tests, publishes self-contained single-file `win-x64` builds of
+  the tray and sink, zips them, and creates a GitHub Release with the version taken
+  from the tag.
 
 ```sh
-dotnet run --project tools/smoke -c Release
+git tag v0.2.0
+git push origin v0.2.0   # -> builds and publishes the release
 ```

@@ -1,0 +1,50 @@
+name: Release
+
+on:
+  push:
+    tags: [ 'v*' ]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Compute version from tag
+        id: ver
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        run: dotnet test -c Release
+
+      - name: Publish tray + hook sink (self-contained, win-x64)
+        shell: bash
+        run: |
+          VER='${{ steps.ver.outputs.version }}'
+          for proj in src/AgentMonitor.Tray src/AgentMonitor.HookSink; do
+            dotnet publish "$proj" -c Release -r win-x64 --self-contained true \
+              -p:PublishSingleFile=true \
+              -p:IncludeNativeLibrariesForSelfExtract=true \
+              -p:Version="$VER" \
+              -o dist
+          done
+
+      - name: Package
+        shell: pwsh
+        run: Compress-Archive -Path dist/* -DestinationPath "AgentMonitor-${{ steps.ver.outputs.version }}-win-x64.zip"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: AgentMonitor-*.zip
+          generate_release_notes: true

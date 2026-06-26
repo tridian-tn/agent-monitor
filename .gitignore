@@ -8,3 +8,6 @@ obj/
 /tools/smoke/obj/
 /tools/installtest/bin/
 /tools/installtest/obj/
+
+# release publish output
+/dist/

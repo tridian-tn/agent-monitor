@@ -6,4 +6,7 @@
     <Project Path="src/AgentMonitor.Providers.Codex/AgentMonitor.Providers.Codex.csproj" />
     <Project Path="src/AgentMonitor.Tray/AgentMonitor.Tray.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AgentMonitor.Tests/AgentMonitor.Tests.csproj" />
+  </Folder>
 </Solution>
