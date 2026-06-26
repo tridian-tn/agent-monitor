@@ -2,8 +2,11 @@ using System.Text.Json;
 
 namespace AgentMonitor.Providers.Codex.Internal;
 
-/// <summary>Metadata parsed from a rollout file's <c>session_meta</c> header.</summary>
-internal sealed record RolloutMeta(string Path, string SessionId, string? Cwd, string? Originator);
+/// <summary>Discovered session metadata. <see cref="Title"/> is populated by the
+/// desktop DB source; the filesystem source leaves it null (the provider then
+/// falls back to the cwd name).</summary>
+internal sealed record RolloutMeta(
+    string Path, string SessionId, string? Cwd, string? Originator, string? Title = null);
 
 /// <summary>
 /// Finds rollout files touched within a recency window (Codex's stand-in for a

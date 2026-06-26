@@ -7,6 +7,9 @@ internal sealed class CodexPaths
     public string Root { get; }
     public string SessionsDir => Path.Combine(Root, "sessions");
 
+    /// <summary>The Codex desktop app's thread registry database.</summary>
+    public string StateDbPath => Path.Combine(Root, "state_5.sqlite");
+
     public CodexPaths(string? rootOverride = null)
     {
         Root = rootOverride

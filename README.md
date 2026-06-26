@@ -100,7 +100,7 @@ dotnet test                      # run the unit tests
 |---|---|---|
 | `AgentMonitor.Core` | `net10.0` | Provider-agnostic models, the `ISessionProvider` interface, the colour policies and the `StatusAggregator`. No tool- or OS-specific code. |
 | `AgentMonitor.Providers.ClaudeCode` | `net10.0` | Reads `~/.claude` (session registry + transcripts + hook markers) and maps Claude Code sessions onto the shared model. **All** Claude-internal format knowledge lives in its `Internal/` folder. |
-| `AgentMonitor.Providers.Codex` | `net10.0` | Reads Codex CLI rollout logs under `~/.codex/sessions`. All Codex-internal format knowledge is confined to its `Internal/` folder. |
+| `AgentMonitor.Providers.Codex` | `net10.0` | Reads Codex sessions — the desktop app's `state_5.sqlite` thread registry when present, else a filesystem scan of `~/.codex/sessions` rollout logs. Uses `Microsoft.Data.Sqlite`. Format knowledge confined to `Internal/`. |
 | `AgentMonitor.HookSink` | `net10.0` | Tiny exe invoked by Claude Code hooks; writes per-session status markers. |
 | `AgentMonitor.Tray` | `net10.0-windows` | WinForms tray app: icon rendering, polling, menu, notifications, hook installer. |
 | `tests/AgentMonitor.Tests` | `net10.0` | xUnit tests for the status logic and the hook installer. |
@@ -165,15 +165,27 @@ is cleaner than Claude's because Codex emits explicit turn-lifecycle events:
 you), and `task_started` / recent writes → working.
 
 The catch is liveness: Codex has **no per-session PID registry**. So "live" is
-approximated by **rollout recency** — only rollouts touched within a window
-(default 15 min) are surfaced, and only while a Codex process is running. A session
-left idle longer than the window ages off the list; there's no way to distinguish
-"idle but open" from "exited" without a process link. Codex sessions therefore have
-no `ProcessId`, so the focus-acknowledgement step doesn't apply to them — green
-clears via a new turn or the timeout instead.
+approximated by **recency** — only sessions active within a window (default 15 min)
+are surfaced, and only while a Codex process is running. A session left idle longer
+than the window ages off the list; there's no way to distinguish "idle but open"
+from "exited" without a process link. Codex sessions therefore have no `ProcessId`,
+so the focus-acknowledgement step doesn't apply — green clears via a new turn or
+the timeout instead.
 
-The Electron/sqlite **Codex desktop app** is intentionally out of scope: its state
-lives in opaque local databases, the same call made for the Claude desktop app.
+**Discovery has two sources** (`Internal/`), both feeding the same rollout-based
+status reader:
+
+- **Desktop app DB (preferred)** — the Codex desktop app turns out to write the
+  *same* rollout files, indexed by a `threads` table in `state_5.sqlite`. When that
+  DB is present, it's the discovery source: it gives real thread titles, an
+  `archived` filter, and a recency timestamp, and avoids scanning the filesystem.
+  The DB belongs to a running app, so it's read from a copy (with its WAL), never
+  the live file.
+- **Filesystem scan (fallback)** — for a pure-CLI install with no desktop DB, the
+  provider walks `~/.codex/sessions` by file recency and titles sessions by cwd.
+
+What's still out of scope is any desktop state that *isn't* mirrored to a rollout
+file (e.g. cloud/remote threads) — those live only in the app's databases.
 
 ## Deciding the colour (attention model)
 

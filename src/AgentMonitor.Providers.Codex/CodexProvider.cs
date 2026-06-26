@@ -16,7 +16,8 @@ namespace AgentMonitor.Providers.Codex;
 public sealed class CodexProvider : ISessionProvider
 {
     private readonly CodexPaths _paths;
-    private readonly RolloutScanner _scanner;
+    private readonly ThreadDbScanner _dbScanner;
+    private readonly RolloutScanner _fileScanner;
     private readonly RolloutStatusReader _status = new();
     private readonly TimeSpan _recencyWindow;
     private readonly TimeSpan _workingWindow;
@@ -24,7 +25,8 @@ public sealed class CodexProvider : ISessionProvider
     public CodexProvider(string? rootOverride = null, TimeSpan? recencyWindow = null, TimeSpan? workingWindow = null)
     {
         _paths = new CodexPaths(rootOverride);
-        _scanner = new RolloutScanner(_paths);
+        _dbScanner = new ThreadDbScanner(_paths);
+        _fileScanner = new RolloutScanner(_paths);
         _recencyWindow = recencyWindow ?? TimeSpan.FromMinutes(15);
         _workingWindow = workingWindow ?? TimeSpan.FromSeconds(6);
     }
@@ -38,8 +40,14 @@ public sealed class CodexProvider : ISessionProvider
         if (!_paths.Exists || !CodexProcess.IsRunning())
             return Array.Empty<AgentSession>();
 
+        var now = DateTimeOffset.UtcNow;
+        // Prefer the desktop app's thread registry (richer titles, archived filter);
+        // fall back to scanning rollout files for a pure-CLI install.
+        var metas = _dbScanner.TryRecentSessions(_recencyWindow, now)
+            ?? _fileScanner.RecentSessions(_recencyWindow, now);
+
         var sessions = new List<AgentSession>();
-        foreach (var meta in _scanner.RecentSessions(_recencyWindow, DateTimeOffset.UtcNow))
+        foreach (var meta in metas)
         {
             var (status, detail, lastActivity) = _status.Read(meta.Path, _workingWindow);
             sessions.Add(new AgentSession
@@ -59,8 +67,13 @@ public sealed class CodexProvider : ISessionProvider
         return sessions;
     }
 
+    private const int MaxTitle = 48;
+
     private static string TitleFor(RolloutMeta meta)
     {
+        if (!string.IsNullOrWhiteSpace(meta.Title))
+            return Shorten(meta.Title.Trim());
+
         if (!string.IsNullOrEmpty(meta.Cwd))
         {
             var name = Path.GetFileName(meta.Cwd.TrimEnd('\\', '/'));
@@ -69,5 +82,12 @@ public sealed class CodexProvider : ISessionProvider
         }
 
         return meta.SessionId.Length >= 8 ? meta.SessionId[..8] : meta.SessionId;
+    }
+
+    private static string Shorten(string title)
+    {
+        // Desktop "Companion Task" threads use the whole first message as the title.
+        var oneLine = title.ReplaceLineEndings(" ");
+        return oneLine.Length <= MaxTitle ? oneLine : oneLine[..MaxTitle].TrimEnd() + "…";
     }
 }
