@@ -169,11 +169,13 @@ turns the whole set into one colour by *how much it wants you*:
 A green session is acknowledged — fading to grey — when any of:
 
 1. **You act on it** — it resumes or dies (no longer awaiting).
-2. **You look at it** — its window shares the foreground window's process lineage.
-   The OS exposes no per-tab signal, so this is *precise per terminal window* for
-   the CLI (the `claude` process is a descendant of the focused terminal) but
-   *whole-app* for Claude Desktop (every session is a child of the single `Claude`
-   window process, so focusing the app marks them all seen). See `ForegroundWindow`.
+2. **You look at it** — its window shares the foreground window's process lineage,
+   **and** that window hosts only this one session. The OS exposes no per-tab
+   signal, so focus only acknowledges when it *uniquely* identifies a session:
+   a single-session terminal or single-tab Claude Desktop clears on focus, but a
+   multi-tab Claude Desktop (or multi-tab terminal) does not — there a background
+   session that finishes still goes green rather than being silently cleared
+   because the app happened to be in front. See `ForegroundWindow`.
 3. **Timeout** — the freshness window elapses.
 
 This state is UI-side (it needs focus + time), so it lives in the tray, not in a

@@ -80,6 +80,41 @@ public class AttentionTrackerTests
     }
 
     [Fact]
+    public void Focus_clears_green_only_when_it_uniquely_identifies_the_session()
+    {
+        // Session reachable from the foreground only via a shared ancestor (e.g. a
+        // terminal hosting just this one claude). Unique -> focus acknowledges.
+        var tracker = new AttentionTracker(Fresh);
+        var session = Awaiting(Now.AddSeconds(-30), pid: 101);
+        var map = new Dictionary<int, int> { [101] = 200 }; // 101's parent is window 200
+
+        var (color, _) = tracker.Evaluate(new[] { session }, Now, () => 200, () => map);
+        Assert.Equal(TrayColor.Grey, color);
+    }
+
+    [Fact]
+    public void Background_tab_still_goes_green_when_app_hosts_several_sessions()
+    {
+        // Claude Desktop: one window (200) hosts two session processes. Focusing the
+        // app can't say which tab you're on, so a background finish must still ping.
+        var tracker = new AttentionTracker(Fresh);
+        var awaiting = Awaiting(Now.AddSeconds(-30), pid: 101, id: "bg");
+        var working = new AgentSession
+        {
+            ProviderId = "claude-code", SessionId = "fg", Title = "fg",
+            Status = SessionStatus.Working, ProcessId = 102,
+        };
+        var map = new Dictionary<int, int> { [101] = 200, [102] = 200 };
+
+        var (color, needsYou) = tracker.Evaluate(
+            new[] { awaiting, working }, Now, () => 200, () => map);
+
+        Assert.Equal(TrayColor.Green, color);
+        Assert.Single(needsYou);
+        Assert.Equal("bg", needsYou[0].SessionId);
+    }
+
+    [Fact]
     public void Once_seen_stays_grey_for_the_same_episode()
     {
         var tracker = new AttentionTracker(Fresh);

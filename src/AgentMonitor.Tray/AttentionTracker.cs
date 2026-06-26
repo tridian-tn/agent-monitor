@@ -45,16 +45,25 @@ internal sealed class AttentionTracker
         int? fg = anyCandidate ? foregroundPid() : null;
         Dictionary<int, int>? parents = fg is not null ? parentMap() : null;
 
+        // Focus only counts as "I looked at this one" when the focused window
+        // uniquely identifies a session. If it hosts several (Claude Desktop with
+        // multiple tabs, or a multi-tab terminal), we can't tell which tab you're
+        // on, so we don't acknowledge by focus — a background finish still pings.
+        bool focusIsPrecise = fg is int fgPid && parents is not null
+            && sessions.Count(s => s.ProcessId is int p
+                && ForegroundWindow.ShareLineage(p, fgPid, parents)) == 1;
+
         var needsYou = new List<AgentSession>();
         foreach (var session in awaiting)
         {
             var key = Key(session);
             var since = session.LastActivity ?? now;
 
-            if (fg is int focusPid && session.ProcessId is int sessionPid && parents is not null
+            if (focusIsPrecise && fg is int focusPid && session.ProcessId is int sessionPid
+                && parents is not null
                 && ForegroundWindow.ShareLineage(sessionPid, focusPid, parents))
             {
-                _seen[key] = since; // you're looking at it
+                _seen[key] = since; // you're looking at this specific session
             }
 
             if (IsFreshAndUnseen(session, now))
