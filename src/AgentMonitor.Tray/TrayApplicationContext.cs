@@ -8,26 +8,24 @@ namespace AgentMonitor.Tray;
 /// <summary>
 /// Owns the tray icon and the polling loop. Providers are injected as a list, so
 /// adding a new LLM tool is just adding another <see cref="ISessionProvider"/>.
+/// The colour comes from <see cref="AttentionTracker"/>: green only when a session
+/// recently became ready and you haven't looked yet.
 /// </summary>
 internal sealed class TrayApplicationContext : ApplicationContext
 {
     private readonly NotifyIcon _notifyIcon;
     private readonly TrayIconRenderer _renderer = new();
     private readonly StatusAggregator _aggregator;
+    private readonly AttentionTracker _tracker = new();
     private readonly System.Windows.Forms.Timer _timer;
 
-    private readonly IStatusPolicy[] _policies =
-    {
-        new AwaitingYouPolicy(),
-        new NothingThinkingPolicy(),
-    };
-
     private readonly HookInstaller _hooks = new();
-    private readonly HashSet<string> _notifiedAwaiting = new();
+    private readonly HashSet<string> _notifiedNeedsYou = new();
     private bool _notificationsEnabled = true;
-    private bool _seededNotifications;
 
-    private AggregateStatus? _last;
+    private AggregateStatus? _lastStatus;
+    private TrayColor _lastColor = TrayColor.Grey;
+    private HashSet<string> _lastNeedsYou = new();
 
     public TrayApplicationContext()
     {
@@ -36,11 +34,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
             new ClaudeCodeProvider(),
             new CodexProvider(), // stub — demonstrates multi-provider support
         };
-        _aggregator = new StatusAggregator(providers) { Policy = _policies[0] };
+        _aggregator = new StatusAggregator(providers);
 
         _notifyIcon = new NotifyIcon
         {
-            Icon = _renderer.Get(TrayColor.Red),
+            Icon = _renderer.Get(TrayColor.Grey),
             Visible = true,
             Text = "Agent Monitor",
             ContextMenuStrip = new ContextMenuStrip(),
@@ -57,42 +55,37 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private void Refresh()
     {
         var status = _aggregator.Compute();
-        _last = status;
-        _notifyIcon.Icon = _renderer.Get(status.Color);
-        _notifyIcon.Text = Truncate($"{status.Color}: {status.Summary}", 63);
-        UpdateNotifications(status);
+        var (color, needsYou) = _tracker.Evaluate(
+            status.Sessions,
+            DateTimeOffset.UtcNow,
+            ForegroundWindow.GetForegroundPid,
+            ForegroundWindow.BuildParentMap);
+
+        _lastStatus = status;
+        _lastColor = color;
+        _lastNeedsYou = needsYou.Select(SessionKey).ToHashSet();
+
+        _notifyIcon.Icon = _renderer.Get(color);
+        _notifyIcon.Text = Truncate($"{color}: {status.Summary}", 63);
+
+        NotifyNeedsYou(needsYou);
     }
 
-    /// <summary>Shows a balloon the moment a session transitions into "awaiting you".</summary>
-    private void UpdateNotifications(AggregateStatus status)
+    /// <summary>Balloons the moment a session newly enters the "needs you now" set.</summary>
+    private void NotifyNeedsYou(IReadOnlyList<AgentSession> needsYou)
     {
-        var awaiting = status.Sessions
-            .Where(s => s.Status == SessionStatus.AwaitingInput)
-            .ToDictionary(SessionKey, s => s);
+        var current = needsYou.Select(SessionKey).ToHashSet();
+        _notifiedNeedsYou.RemoveWhere(k => !current.Contains(k));
 
-        // The first pass seeds a baseline so we don't balloon for sessions that were
-        // already finished when the app started.
-        if (!_seededNotifications)
+        foreach (var session in needsYou)
         {
-            foreach (var key in awaiting.Keys)
-                _notifiedAwaiting.Add(key);
-            _seededNotifications = true;
-            return;
-        }
-
-        // Forget sessions that are no longer awaiting, so they can notify again next
-        // time they finish.
-        _notifiedAwaiting.RemoveWhere(k => !awaiting.ContainsKey(k));
-
-        foreach (var (key, session) in awaiting)
-        {
-            if (!_notifiedAwaiting.Add(key))
-                continue; // already seen in the awaiting state
+            if (!_notifiedNeedsYou.Add(SessionKey(session)))
+                continue; // already pinged for this episode
 
             if (_notificationsEnabled)
             {
-                var detail = string.IsNullOrEmpty(session.Detail) ? "is awaiting you" : session.Detail;
-                _notifyIcon.ShowBalloonTip(3000, $"{session.Title} — awaiting you", detail, ToolTipIcon.Info);
+                var detail = string.IsNullOrEmpty(session.Detail) ? "is ready for you" : session.Detail;
+                _notifyIcon.ShowBalloonTip(3000, $"{session.Title} — ready for you", detail, ToolTipIcon.Info);
             }
         }
     }
@@ -104,9 +97,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         var menu = _notifyIcon.ContextMenuStrip!;
         menu.Items.Clear();
 
-        var status = _last ?? _aggregator.Compute();
+        var status = _lastStatus ?? _aggregator.Compute();
 
-        menu.Items.Add(new ToolStripMenuItem($"{status.Color} — {status.Summary}") { Enabled = false });
+        menu.Items.Add(new ToolStripMenuItem($"{_lastColor} — {status.Summary}") { Enabled = false });
         menu.Items.Add(new ToolStripSeparator());
 
         if (status.Sessions.Count == 0)
@@ -120,7 +113,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
 
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(BuildPolicyMenu());
         menu.Items.Add(BuildPreciseModeMenu());
 
         var refresh = new ToolStripMenuItem("Refresh now");
@@ -137,7 +129,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         startup.Click += (_, _) => SetStartup(startup.Checked);
         menu.Items.Add(startup);
 
-        var notify = new ToolStripMenuItem("Notify when awaiting")
+        var notify = new ToolStripMenuItem("Notify when ready")
         {
             Checked = _notificationsEnabled,
             CheckOnClick = true,
@@ -178,26 +170,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 $"Could not change the startup setting:\n{ex.Message}",
                 "Agent Monitor", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
-    }
-
-    private ToolStripMenuItem BuildPolicyMenu()
-    {
-        var policyMenu = new ToolStripMenuItem("Policy");
-        foreach (var policy in _policies)
-        {
-            var item = new ToolStripMenuItem(policy.Name)
-            {
-                Checked = _aggregator.Policy.GetType() == policy.GetType(),
-            };
-            var captured = policy;
-            item.Click += (_, _) =>
-            {
-                _aggregator.Policy = captured;
-                Refresh();
-            };
-            policyMenu.DropDownItems.Add(item);
-        }
-        return policyMenu;
     }
 
     private ToolStripMenuItem BuildPreciseModeMenu()
@@ -260,24 +232,30 @@ internal sealed class TrayApplicationContext : ApplicationContext
         Refresh();
     }
 
-    private static string DescribeSession(AgentSession session)
+    private string DescribeSession(AgentSession session)
     {
-        var glyph = session.Status switch
-        {
-            SessionStatus.AwaitingInput => "✓", // check mark
-            SessionStatus.Working => "…",        // ellipsis
-            SessionStatus.Error => "!",
-            _ => "·",                             // middle dot
-        };
+        bool needsYou = _lastNeedsYou.Contains(SessionKey(session));
 
-        var state = session.Status switch
-        {
-            SessionStatus.AwaitingInput => "awaiting you",
-            SessionStatus.Working => "working",
-            SessionStatus.Idle => "idle",
-            SessionStatus.Error => "error",
-            _ => "unknown",
-        };
+        var glyph = needsYou
+            ? "★"                                  // ready and unseen
+            : session.Status switch
+            {
+                SessionStatus.AwaitingInput => "✓", // done, already seen / stale
+                SessionStatus.Working => "…",        // working
+                SessionStatus.Error => "!",
+                _ => "·",
+            };
+
+        var state = needsYou
+            ? "ready for you"
+            : session.Status switch
+            {
+                SessionStatus.AwaitingInput => "waiting (seen)",
+                SessionStatus.Working => "working",
+                SessionStatus.Idle => "idle",
+                SessionStatus.Error => "error",
+                _ => "unknown",
+            };
 
         var detail = string.IsNullOrEmpty(session.Detail) ? "" : $" ({session.Detail})";
         var origin = string.IsNullOrEmpty(session.Origin) ? "" : $" [{session.Origin}]";

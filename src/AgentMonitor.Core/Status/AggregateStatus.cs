@@ -2,10 +2,9 @@ using AgentMonitor.Core.Sessions;
 
 namespace AgentMonitor.Core.Status;
 
-/// <summary>The rolled-up state shown by the tray icon at a point in time.</summary>
+/// <summary>The merged set of sessions across all providers at a point in time.</summary>
 public sealed record AggregateStatus
 {
-    public required TrayColor Color { get; init; }
     public required IReadOnlyList<AgentSession> Sessions { get; init; }
     public required string Summary { get; init; }
 

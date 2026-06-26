@@ -1,7 +1,15 @@
 # Agent Monitor
 
-A Windows system-tray **traffic light** for local LLM coding agents. One coloured
-icon tells you, at a glance, whether any session needs you.
+A Windows system-tray light for local LLM coding agents. One coloured icon tells
+you, at a glance, whether any session is **ready for you**:
+
+- 🟢 **Green** — a session recently finished / is waiting on you, and you haven't
+  looked yet. The "go look" ping.
+- 🟠 **Amber** — something is working; nothing is waiting on you.
+- ⚪ **Grey** — nothing wants you: idle, already-seen, or not running.
+
+Green is deliberately rare — it appears only when something genuinely needs your
+attention and fades back to grey once you've looked or after a few minutes.
 
 It currently monitors **Claude Code** — both the desktop app and the terminal CLI —
 and is built so other tools (e.g. Codex) can be added behind one interface.
@@ -33,12 +41,14 @@ for the menu.
 
 | Colour | Meaning |
 |:---:|---|
-| 🔴 Red | No Claude session is running. |
+| 🟢 Green | A session recently became ready for you and you haven't looked yet — **go look**. |
 | 🟠 Amber | Something is working; nothing is waiting on you yet. |
-| 🟢 Green | A session has finished or is waiting for you — go look. |
+| ⚪ Grey | Nothing wants you: idle, already-seen, or not running. |
 
-Right-click → the menu lists every session, its state, and its folder, so you can
-see *which* one is ready.
+Green fades back to grey once you've **looked at the session** (focused its Claude
+window) or after ~5 minutes — so it only lights up for things you haven't dealt
+with. Right-click → the menu lists every session and marks the ones that are
+**★ ready for you**, with their folders, so you can see *which* one to open.
 
 ### 3. (Recommended) Turn on precise mode
 
@@ -146,13 +156,37 @@ which the interpreter prefers when present. All three sources sit behind
 > liable to change — which is why every byte of that format knowledge is confined
 > to `AgentMonitor.Providers.ClaudeCode/Internal/`.
 
+## Deciding the colour (attention model)
+
+Providers report each session's raw status (working / awaiting / …); `AttentionTracker`
+turns the whole set into one colour by *how much it wants you*:
+
+- **Green** — at least one session is `AwaitingInput`, became so recently (within a
+  ~5-minute window), **and** you haven't acknowledged it.
+- **Amber** — something is working and nothing qualifies for green.
+- **Grey** — everything else (idle, already-seen, stale, or not running).
+
+A green session is acknowledged — fading to grey — when any of:
+
+1. **You act on it** — it resumes or dies (no longer awaiting).
+2. **You look at it** — its window shares the foreground window's process lineage.
+   The OS exposes no per-tab signal, so this is *precise per terminal window* for
+   the CLI (the `claude` process is a descendant of the focused terminal) but
+   *whole-app* for Claude Desktop (every session is a child of the single `Claude`
+   window process, so focusing the app marks them all seen). See `ForegroundWindow`.
+3. **Timeout** — the freshness window elapses.
+
+This state is UI-side (it needs focus + time), so it lives in the tray, not in a
+provider. The freshness window is a constant in `AttentionTracker` today.
+
 ## Adding a provider (e.g. Codex)
 
 1. Implement `ISessionProvider.GetSessions()`, discovering that tool's own session
-   state and mapping it onto `SessionStatus`.
+   state and mapping it onto `SessionStatus` (and set `LastActivity` to when it
+   entered that state — the attention model uses it for freshness).
 2. Add it to the provider list in `TrayApplicationContext`.
 
-The policies, aggregator and tray are unchanged. See
+The aggregator, attention model and tray are unchanged. See
 `AgentMonitor.Providers.Codex/CodexProvider.cs` for the skeleton.
 
 ## Versioning

@@ -12,9 +12,10 @@ internal sealed class TrayIconRenderer : IDisposable
 
     public TrayIconRenderer()
     {
-        _icons[TrayColor.Red] = Build(Color.FromArgb(220, 53, 47));
+        _icons[TrayColor.Grey] = Build(Color.FromArgb(130, 130, 135));
         _icons[TrayColor.Amber] = Build(Color.FromArgb(240, 160, 30));
         _icons[TrayColor.Green] = Build(Color.FromArgb(40, 180, 80));
+        _icons[TrayColor.Red] = Build(Color.FromArgb(220, 53, 47));
     }
 
     public Icon Get(TrayColor color) => _icons[color];

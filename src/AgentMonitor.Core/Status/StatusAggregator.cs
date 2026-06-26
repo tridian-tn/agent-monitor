@@ -3,8 +3,9 @@ using AgentMonitor.Core.Sessions;
 namespace AgentMonitor.Core.Status;
 
 /// <summary>
-/// Polls every provider, merges their sessions into one list, and applies the
-/// active <see cref="IStatusPolicy"/> to produce a single tray colour.
+/// Polls every provider and merges their sessions into one snapshot. The tray
+/// colour is decided downstream (it needs UI-side state like focus and freshness),
+/// so this type is purely about gathering sessions.
 /// </summary>
 public sealed class StatusAggregator
 {
@@ -14,9 +15,6 @@ public sealed class StatusAggregator
     {
         _providers = providers;
     }
-
-    /// <summary>The active colour policy. Swappable at runtime.</summary>
-    public IStatusPolicy Policy { get; set; } = new AwaitingYouPolicy();
 
     public AggregateStatus Compute()
     {
@@ -33,10 +31,8 @@ public sealed class StatusAggregator
             }
         }
 
-        var color = Policy.Evaluate(sessions);
         return new AggregateStatus
         {
-            Color = color,
             Sessions = sessions,
             Summary = BuildSummary(sessions),
         };
