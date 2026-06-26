@@ -17,6 +17,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\AgentMonitor.Core\AgentMonitor.Core.csproj" />
     <ProjectReference Include="..\..\src\AgentMonitor.Providers.ClaudeCode\AgentMonitor.Providers.ClaudeCode.csproj" />
+    <ProjectReference Include="..\..\src\AgentMonitor.Providers.Codex\AgentMonitor.Providers.Codex.csproj" />
     <!-- Tray pieces under test that have no WinForms dependency; compile directly. -->
     <Compile Include="..\..\src\AgentMonitor.Tray\HookInstaller.cs" />
     <Compile Include="..\..\src\AgentMonitor.Tray\AttentionTracker.cs" />

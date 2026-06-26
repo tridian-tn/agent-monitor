@@ -1,15 +1,27 @@
 using System.Text.Json;
 using AgentMonitor.Core.Sessions;
 using AgentMonitor.Providers.ClaudeCode;
+using AgentMonitor.Providers.Codex;
 
 // ---------------------------------------------------------------------------
-// Part A: dump what the provider sees against the real ~/.claude right now.
+// Part A: dump what the providers see against the real data right now.
 // ---------------------------------------------------------------------------
-Console.WriteLine("== Live snapshot ==");
+Console.WriteLine("== Live snapshot (Claude Code) ==");
 var live = new ClaudeCodeProvider();
 Console.WriteLine($"Claude installed: {live.IsInstalled}, hooks active: {live.HooksActive}");
 foreach (var s in live.GetSessions())
     Console.WriteLine($"  - {s.Title,-22} {s.Status,-13} pid={s.ProcessId} detail={s.Detail}");
+
+Console.WriteLine("\n== Live snapshot (Codex, default 15-min window) ==");
+var codex = new CodexProvider();
+Console.WriteLine($"Codex installed: {codex.IsInstalled}");
+foreach (var s in codex.GetSessions())
+    Console.WriteLine($"  - {s.Title,-22} {s.Status,-13} detail={s.Detail} origin={s.Origin}");
+
+Console.WriteLine("\n== Codex parse check (wide 90-day window — proves rollout parsing) ==");
+var codexWide = new CodexProvider(recencyWindow: TimeSpan.FromDays(90));
+foreach (var s in codexWide.GetSessions().Take(8))
+    Console.WriteLine($"  - {s.Title,-22} {s.Status,-13} detail={s.Detail} cwd={s.WorkingDirectory}");
 
 // ---------------------------------------------------------------------------
 // Part B: deterministic test of the hook interpreter. We stage a temp config

@@ -12,7 +12,8 @@ Green is deliberately rare — it appears only when something genuinely needs yo
 attention and fades back to grey once you've looked or after a few minutes.
 
 It currently monitors **Claude Code** — both the desktop app and the terminal CLI —
-and is built so other tools (e.g. Codex) can be added behind one interface.
+It monitors **Claude Code** and **Codex** (both their CLIs), behind one provider
+interface that other tools can plug into.
 
 ---
 
@@ -99,7 +100,7 @@ dotnet test                      # run the unit tests
 |---|---|---|
 | `AgentMonitor.Core` | `net10.0` | Provider-agnostic models, the `ISessionProvider` interface, the colour policies and the `StatusAggregator`. No tool- or OS-specific code. |
 | `AgentMonitor.Providers.ClaudeCode` | `net10.0` | Reads `~/.claude` (session registry + transcripts + hook markers) and maps Claude Code sessions onto the shared model. **All** Claude-internal format knowledge lives in its `Internal/` folder. |
-| `AgentMonitor.Providers.Codex` | `net10.0` | Stub showing the extension point — implement and drop in. |
+| `AgentMonitor.Providers.Codex` | `net10.0` | Reads Codex CLI rollout logs under `~/.codex/sessions`. All Codex-internal format knowledge is confined to its `Internal/` folder. |
 | `AgentMonitor.HookSink` | `net10.0` | Tiny exe invoked by Claude Code hooks; writes per-session status markers. |
 | `AgentMonitor.Tray` | `net10.0-windows` | WinForms tray app: icon rendering, polling, menu, notifications, hook installer. |
 | `tests/AgentMonitor.Tests` | `net10.0` | xUnit tests for the status logic and the hook installer. |
@@ -156,6 +157,24 @@ which the interpreter prefers when present. All three sources sit behind
 > liable to change — which is why every byte of that format knowledge is confined
 > to `AgentMonitor.Providers.ClaudeCode/Internal/`.
 
+## How status is detected (Codex)
+
+Codex writes rollout logs to `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`. Status
+is cleaner than Claude's because Codex emits explicit turn-lifecycle events:
+`task_complete` → awaiting you, an `*approval*` request → awaiting you (blocked on
+you), and `task_started` / recent writes → working.
+
+The catch is liveness: Codex has **no per-session PID registry**. So "live" is
+approximated by **rollout recency** — only rollouts touched within a window
+(default 15 min) are surfaced, and only while a Codex process is running. A session
+left idle longer than the window ages off the list; there's no way to distinguish
+"idle but open" from "exited" without a process link. Codex sessions therefore have
+no `ProcessId`, so the focus-acknowledgement step doesn't apply to them — green
+clears via a new turn or the timeout instead.
+
+The Electron/sqlite **Codex desktop app** is intentionally out of scope: its state
+lives in opaque local databases, the same call made for the Claude desktop app.
+
 ## Deciding the colour (attention model)
 
 Providers report each session's raw status (working / awaiting / …); `AttentionTracker`
@@ -188,8 +207,8 @@ provider. The freshness window is a constant in `AttentionTracker` today.
    entered that state — the attention model uses it for freshness).
 2. Add it to the provider list in `TrayApplicationContext`.
 
-The aggregator, attention model and tray are unchanged. See
-`AgentMonitor.Providers.Codex/CodexProvider.cs` for the skeleton.
+The aggregator, attention model and tray are unchanged.
+`AgentMonitor.Providers.Codex` is a worked example of a second provider.
 
 ## Versioning
 

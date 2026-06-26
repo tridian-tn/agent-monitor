@@ -10,4 +10,8 @@
     <ProjectReference Include="..\AgentMonitor.Core\AgentMonitor.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="AgentMonitor.Tests" />
+  </ItemGroup>
+
 </Project>
