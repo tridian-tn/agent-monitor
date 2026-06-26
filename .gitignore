@@ -1,0 +1,10 @@
+bin/
+obj/
+*.user
+.vs/
+
+# dev scratch test tools (kept locally, not part of the build)
+/tools/smoke/bin/
+/tools/smoke/obj/
+/tools/installtest/bin/
+/tools/installtest/obj/

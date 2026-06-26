@@ -1,0 +1,33 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- Base version. CI release builds override -p:Version=<tag> from the git tag. -->
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <Product>Agent Monitor</Product>
+    <Company>Tridian</Company>
+    <Authors>Trystan</Authors>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <!--
+    Embed the short git commit into InformationalVersion. The .NET SDK appends
+    "+$(SourceRevisionId)" automatically, giving e.g. "0.1.0+ab12cd3". Failures
+    (no git, not a repo) are ignored so the build always succeeds.
+  -->
+  <Target Name="SetGitRevision"
+          BeforeTargets="GetAssemblyVersion;GenerateAssemblyInfo"
+          Condition="'$(SourceRevisionId)' == ''">
+    <Exec Command="git rev-parse --short=8 HEAD"
+          ConsoleToMSBuild="true"
+          ContinueOnError="true"
+          StandardOutputImportance="low"
+          StandardErrorImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_GitSha" />
+    </Exec>
+    <PropertyGroup>
+      <SourceRevisionId Condition="'$(_GitSha)' != ''">$(_GitSha)</SourceRevisionId>
+    </PropertyGroup>
+  </Target>
+
+</Project>

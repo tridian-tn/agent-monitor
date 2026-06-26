@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AgentMonitor.Core/AgentMonitor.Core.csproj" />
+    <Project Path="src/AgentMonitor.HookSink/AgentMonitor.HookSink.csproj" />
+    <Project Path="src/AgentMonitor.Providers.ClaudeCode/AgentMonitor.Providers.ClaudeCode.csproj" />
+    <Project Path="src/AgentMonitor.Providers.Codex/AgentMonitor.Providers.Codex.csproj" />
+    <Project Path="src/AgentMonitor.Tray/AgentMonitor.Tray.csproj" />
+  </Folder>
+</Solution>

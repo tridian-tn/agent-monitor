@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>AgentMonitor</AssemblyName>
+    <RootNamespace>AgentMonitor.Tray</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgentMonitor.Core\AgentMonitor.Core.csproj" />
+    <ProjectReference Include="..\AgentMonitor.Providers.ClaudeCode\AgentMonitor.Providers.ClaudeCode.csproj" />
+    <ProjectReference Include="..\AgentMonitor.Providers.Codex\AgentMonitor.Providers.Codex.csproj" />
+    <!-- Build the hook sink alongside the tray, but don't reference its assembly. -->
+    <ProjectReference Include="..\AgentMonitor.HookSink\AgentMonitor.HookSink.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <Private>false</Private>
+    </ProjectReference>
+  </ItemGroup>
+
+  <!-- Copy the hook sink's output next to the tray exe so the installer finds it. -->
+  <Target Name="CopyHookSink" AfterTargets="Build">
+    <PropertyGroup>
+      <HookSinkDir>$(MSBuildProjectDirectory)\..\AgentMonitor.HookSink\bin\$(Configuration)\net10.0</HookSinkDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <HookSinkFiles Include="$(HookSinkDir)\AgentMonitor.HookSink.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(HookSinkFiles)"
+          DestinationFolder="$(OutDir)"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(HookSinkDir)\AgentMonitor.HookSink.dll')" />
+  </Target>
+
+</Project>
