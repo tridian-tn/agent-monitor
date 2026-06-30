@@ -45,6 +45,28 @@ public class TranscriptStatusReaderTests : IDisposable
     }
 
     [Fact]
+    public void EndTurn_dates_finished_by_assistant_timestamp_not_file_mtime()
+    {
+        // Reopening an old session touches the transcript (fresh mtime) without
+        // adding a turn. LastActivity must reflect when the turn *finished* (the
+        // assistant record's timestamp), not the just-now write time — otherwise
+        // a weeks-old session pings as if it just became ready.
+        var turnFinished = DateTimeOffset.UtcNow.AddDays(-30);
+        var path = Write(
+            $"{{\"type\":\"assistant\",\"timestamp\":\"{turnFinished:o}\",\"message\":{{\"stop_reason\":\"end_turn\"}}}}\n",
+            DateTime.UtcNow); // touched just now
+
+        var (status, detail, lastActivity) = _reader.Read(path, Window, Idle);
+
+        Assert.Equal(SessionStatus.AwaitingInput, status);
+        Assert.Equal("finished", detail);
+        Assert.NotNull(lastActivity);
+        Assert.True(
+            DateTimeOffset.UtcNow - lastActivity!.Value > TimeSpan.FromDays(1),
+            "LastActivity should be the old turn time, not the fresh file mtime.");
+    }
+
+    [Fact]
     public void Recent_tooluse_reads_as_working()
     {
         var path = Write(
