@@ -39,11 +39,14 @@ internal sealed class TranscriptStatusReader
         }
 
         TimeSpan age = DateTimeOffset.UtcNow - lastWrite;
-        string? lastAssistantStop = ReadLastAssistantStopReason(path);
+        var (lastAssistantStop, lastAssistantTime) = ReadLastAssistant(path);
 
-        // A finished turn is the unambiguous "awaiting you" signal.
+        // A finished turn is the unambiguous "awaiting you" signal. Date it by the
+        // assistant turn itself, not the file's write time: merely opening an old
+        // session touches the transcript, which would otherwise make a turn that
+        // finished weeks ago look like it just landed and ping you for nothing.
         if (lastAssistantStop == "end_turn")
-            return (SessionStatus.AwaitingInput, "finished", lastWrite);
+            return (SessionStatus.AwaitingInput, "finished", lastAssistantTime ?? lastWrite);
 
         // Actively appending => the agent is streaming output / working.
         if (age <= workingWindow)
@@ -59,7 +62,7 @@ internal sealed class TranscriptStatusReader
         return (SessionStatus.Working, null, lastWrite);
     }
 
-    private static string? ReadLastAssistantStopReason(string path)
+    private static (string? StopReason, DateTimeOffset? Timestamp) ReadLastAssistant(string path)
     {
         try
         {
@@ -70,26 +73,31 @@ internal sealed class TranscriptStatusReader
             using var reader = new StreamReader(fs, Encoding.UTF8);
 
             string? lastStop = null;
+            DateTimeOffset? lastTime = null;
             string? line;
             while ((line = reader.ReadLine()) is not null)
             {
                 if (string.IsNullOrWhiteSpace(line))
                     continue;
 
-                var parsed = ParseAssistantStop(line);
+                var parsed = ParseAssistant(line);
                 if (parsed.IsAssistant)
-                    lastStop = parsed.StopReason; // remember most recent assistant turn
+                {
+                    // Remember the most recent assistant turn.
+                    lastStop = parsed.StopReason;
+                    lastTime = parsed.Timestamp;
+                }
             }
 
-            return lastStop;
+            return (lastStop, lastTime);
         }
         catch
         {
-            return null;
+            return (null, null);
         }
     }
 
-    private static (bool IsAssistant, string? StopReason) ParseAssistantStop(string line)
+    private static (bool IsAssistant, string? StopReason, DateTimeOffset? Timestamp) ParseAssistant(string line)
     {
         try
         {
@@ -97,22 +105,30 @@ internal sealed class TranscriptStatusReader
             var root = doc.RootElement;
 
             if (!root.TryGetProperty("type", out var type) || type.GetString() != "assistant")
-                return (false, null);
+                return (false, null, null);
+
+            DateTimeOffset? timestamp = null;
+            if (root.TryGetProperty("timestamp", out var ts)
+                && ts.ValueKind == JsonValueKind.String
+                && DateTimeOffset.TryParse(ts.GetString(), out var parsedTs))
+            {
+                timestamp = parsedTs.ToUniversalTime();
+            }
 
             if (root.TryGetProperty("message", out var message)
                 && message.ValueKind == JsonValueKind.Object
                 && message.TryGetProperty("stop_reason", out var stop))
             {
-                return (true, stop.GetString());
+                return (true, stop.GetString(), timestamp);
             }
 
-            return (true, null);
+            return (true, null, timestamp);
         }
         catch
         {
             // A partial first line (we seeked into the middle of the file) or any
             // non-JSON line: ignore it.
-            return (false, null);
+            return (false, null, null);
         }
     }
 }
