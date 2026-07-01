@@ -12,7 +12,12 @@ public sealed class StatusAggregator
     private readonly IReadOnlyList<ISessionProvider> _providers;
     private readonly TimeSpan _activityWindow;
 
-    public StatusAggregator(IReadOnlyList<ISessionProvider> providers, TimeSpan? activityWindow = null)
+    public StatusAggregator(IReadOnlyList<ISessionProvider> providers)
+        : this(providers, null)
+    {
+    }
+
+    public StatusAggregator(IReadOnlyList<ISessionProvider> providers, TimeSpan? activityWindow)
     {
         _providers = providers;
         _activityWindow = activityWindow ?? TimeSpan.FromMinutes(30);
