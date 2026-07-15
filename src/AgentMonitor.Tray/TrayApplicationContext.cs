@@ -21,6 +21,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private readonly HookInstaller _hooks = new();
     private readonly HashSet<string> _notifiedNeedsYou = new();
+    private readonly AppSettings _settings = AppSettings.Load();
+    private readonly ReadyFlashOverlay _flash = new();
     private bool _notificationsEnabled = true;
 
     private AggregateStatus? _lastStatus;
@@ -60,6 +62,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
             DateTimeOffset.UtcNow,
             ForegroundWindow.GetForegroundPid,
             ForegroundWindow.BuildParentMap);
+
+        // Flash only on the rising edge into green — one glance-catcher per episode,
+        // not a re-flash every second while a session keeps waiting.
+        if (_settings.FlashOnReady && color == TrayColor.Green && _lastColor != TrayColor.Green)
+            _flash.Flash();
 
         _lastStatus = status;
         _lastColor = color;
@@ -136,6 +143,18 @@ internal sealed class TrayApplicationContext : ApplicationContext
         };
         notify.Click += (_, _) => _notificationsEnabled = notify.Checked;
         menu.Items.Add(notify);
+
+        var flash = new ToolStripMenuItem("Flash green circle when ready")
+        {
+            Checked = _settings.FlashOnReady,
+            CheckOnClick = true,
+        };
+        flash.Click += (_, _) =>
+        {
+            _settings.FlashOnReady = flash.Checked;
+            _settings.Save();
+        };
+        menu.Items.Add(flash);
 
         var about = new ToolStripMenuItem("About…");
         about.Click += (_, _) =>
@@ -273,6 +292,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _notifyIcon.Visible = false;
             _notifyIcon.Dispose();
             _renderer.Dispose();
+            _flash.Dispose();
         }
         base.Dispose(disposing);
     }

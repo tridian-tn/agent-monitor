@@ -67,6 +67,9 @@ same menu. It's completely optional — the app works without it.
 
 - **Notify when awaiting** *(on by default)* — pops a balloon the moment a session
   finishes and is waiting for you. Toggle it from the right-click menu.
+- **Flash green circle when ready** *(on by default)* — briefly flashes a big green
+  circle in the top-right corner of the active monitor when a session becomes ready,
+  then fades away. Tick it from the right-click menu; the choice is remembered.
 - **Start with Windows** — right-click → tick it to launch the tray automatically
   at sign-in.
 - **About…** — shows the version you're running.
