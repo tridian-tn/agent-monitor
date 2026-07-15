@@ -22,6 +22,7 @@
     <Compile Include="..\..\src\AgentMonitor.Tray\HookInstaller.cs" />
     <Compile Include="..\..\src\AgentMonitor.Tray\AttentionTracker.cs" />
     <Compile Include="..\..\src\AgentMonitor.Tray\ForegroundWindow.cs" />
+    <Compile Include="..\..\src\AgentMonitor.Tray\AppSettings.cs" />
   </ItemGroup>
 
 </Project>
