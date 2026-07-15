@@ -28,7 +28,7 @@ internal sealed class AppSettings
         {
             if (File.Exists(path))
             {
-                var loaded = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path));
+                var loaded = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path), JsonOptions);
                 if (loaded is not null)
                 {
                     loaded.FilePath = path;

@@ -7,7 +7,7 @@ namespace AgentMonitor.Tray;
 /// A brief, click-through green circle that appears in the top-right corner of the
 /// active monitor when a session becomes ready — the same green as the tray icon,
 /// scaled up to catch your eye. It never takes focus, passes clicks through to
-/// whatever is beneath it, and fades itself away after a couple of seconds.
+/// whatever is beneath it, and fades itself away after about five seconds.
 /// </summary>
 internal sealed class ReadyFlashOverlay : IDisposable
 {
@@ -62,6 +62,8 @@ internal sealed class ReadyFlashOverlay : IDisposable
         private const int WS_EX_TOOLWINDOW = 0x00000080;    // stays out of Alt+Tab
         private const int WS_EX_NOACTIVATE = 0x08000000;    // never steals focus
 
+        private static readonly Color TrayGreen = Color.FromArgb(40, 180, 80); // matches the tray icon
+
         private const double PeakOpacity = 0.9;
         private const int StepMs = 40;
         private const int HoldMs = 4300;   // fully visible, then...
@@ -77,7 +79,7 @@ internal sealed class ReadyFlashOverlay : IDisposable
             TopMost = true;
             StartPosition = FormStartPosition.Manual;
             DoubleBuffered = true;
-            BackColor = Color.FromArgb(40, 180, 80); // matches the green tray icon
+            BackColor = TrayGreen;
             Opacity = PeakOpacity;
 
             _timer = new System.Windows.Forms.Timer { Interval = StepMs };
@@ -145,7 +147,7 @@ internal sealed class ReadyFlashOverlay : IDisposable
 
             var rect = new Rectangle(3, 3, ClientSize.Width - 6, ClientSize.Height - 6);
 
-            using var fill = new SolidBrush(Color.FromArgb(40, 180, 80));
+            using var fill = new SolidBrush(TrayGreen);
             g.FillEllipse(fill, rect);
 
             using var ring = new Pen(Color.FromArgb(90, 0, 0, 0), 3f);
