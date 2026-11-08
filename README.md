@@ -171,13 +171,14 @@ as daemon-backed sessions do. This takes priority over hooks and the transcript.
 Codex's files are read from `~/.codex`, or from `CODEX_HOME` if it's set.
 
 Status comes from the rollout logs at `sessions/YYYY/MM/DD/rollout-*.jsonl`, which
-record turn events explicitly:
+record turn events explicitly. Only the last turn-lifecycle event counts: `task_started`,
+`task_complete` or an approval request. Other events, such as `token_count`, are ignored.
 
 | Condition | Status |
 |---|---|
-| The last event is `task_complete` | Awaiting you (finished) |
-| The last event is an approval request | Awaiting you (needs approval) |
-| The last event is `task_started`, or the file was written in the last 6 seconds | Working |
+| The last turn-lifecycle event is `task_complete` | Awaiting you (finished) |
+| The last turn-lifecycle event is an approval request | Awaiting you (needs approval) |
+| The last turn-lifecycle event is `task_started`, or the file was written in the last 6 seconds | Working |
 | Anything else | Unknown |
 
 Sessions are found in one of two ways:
