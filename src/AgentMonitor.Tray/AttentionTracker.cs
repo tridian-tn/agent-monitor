@@ -12,7 +12,8 @@ namespace AgentMonitor.Tray;
 ///   <item><b>Grey</b> — nothing wants you (idle, already-seen, or not running).</item>
 /// </list>
 /// A waiting session stops counting as "fresh" once you look at it (its window
-/// shares the foreground lineage), when it resumes/dies, or after a timeout.
+/// shares the foreground lineage and hosts no other session), when it resumes/dies,
+/// or after a timeout.
 /// </summary>
 internal sealed class AttentionTracker
 {

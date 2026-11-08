@@ -34,7 +34,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         var providers = new ISessionProvider[]
         {
             new ClaudeCodeProvider(),
-            new CodexProvider(), // stub — demonstrates multi-provider support
+            new CodexProvider(),
         };
         _aggregator = new StatusAggregator(providers);
 
