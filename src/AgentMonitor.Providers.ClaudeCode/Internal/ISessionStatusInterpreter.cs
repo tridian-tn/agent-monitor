@@ -3,9 +3,9 @@ using AgentMonitor.Core.Sessions;
 namespace AgentMonitor.Providers.ClaudeCode.Internal;
 
 /// <summary>
-/// Strategy for deciding a session's status from its registry record. The default
-/// implementation reads transcripts; future implementations could read Stop /
-/// Notification hook output or the daemon tempo/needs store for exact status.
+/// Strategy for deciding a session's status from its registry record.
+/// <see cref="HeuristicStatusInterpreter"/> uses the daemon tempo/needs fields or the
+/// transcript; <see cref="HookStatusInterpreter"/> layers hook events on top of it.
 /// </summary>
 internal interface ISessionStatusInterpreter
 {

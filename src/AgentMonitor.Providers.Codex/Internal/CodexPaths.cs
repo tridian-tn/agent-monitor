@@ -1,6 +1,6 @@
 namespace AgentMonitor.Providers.Codex.Internal;
 
-/// <summary>Resolves the Codex CLI's on-disk locations. Isolated so a layout
+/// <summary>Resolves the on-disk locations Codex uses. Isolated so a layout
 /// change is a one-file fix.</summary>
 internal sealed class CodexPaths
 {

@@ -4,15 +4,17 @@ namespace AgentMonitor.Tray;
 
 /// <summary>
 /// Detects the foreground window's process and whether a given process shares its
-/// lineage. A session is treated as "on screen" when the focused window and the
-/// session process are on the same parent/child chain:
+/// lineage, meaning the focused window and the process are on the same parent/child
+/// chain:
 /// <list type="bullet">
 ///   <item>CLI Claude Code — the <c>claude</c> process is a descendant of the
-///   focused terminal window, so focus is per-terminal-window precise.</item>
+///   focused terminal window.</item>
 ///   <item>Claude Desktop — every session process is a child of the single
-///   <c>Claude</c> window process, so focusing the app marks them all seen
-///   (the OS exposes no per-tab signal).</item>
+///   <c>Claude</c> window process, so all of them match it (the OS exposes no
+///   per-tab signal).</item>
 /// </list>
+/// <see cref="AttentionTracker"/> therefore only treats focus as "you looked" when
+/// exactly one session shares the window's lineage.
 /// </summary>
 internal static class ForegroundWindow
 {

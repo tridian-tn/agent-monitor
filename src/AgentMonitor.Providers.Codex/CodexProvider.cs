@@ -4,14 +4,14 @@ using AgentMonitor.Providers.Codex.Internal;
 namespace AgentMonitor.Providers.Codex;
 
 /// <summary>
-/// Surfaces Codex CLI sessions from its rollout logs under <c>~/.codex/sessions</c>.
-/// Codex has no per-session PID registry, so "live" is approximated by rollout
-/// recency while a Codex process is running. Status comes from the rollout's
-/// turn-lifecycle events (<c>task_started</c> / <c>task_complete</c> / approval
-/// requests).
+/// Surfaces Codex sessions — desktop and CLI alike — from their rollout logs under
+/// <c>~/.codex/sessions</c>. Sessions are discovered through the desktop app's thread
+/// database when present, else by scanning the rollout files. Codex has no per-session
+/// PID registry, so "live" is approximated by recency while a Codex process is running.
+/// Status comes from the rollout's turn-lifecycle events (<c>task_started</c> /
+/// <c>task_complete</c> / approval requests).
 ///
-/// The Electron/sqlite Codex desktop app is intentionally out of scope — its state
-/// lives in opaque local databases, the same call made for the Claude desktop app.
+/// Desktop threads with no local rollout file (e.g. cloud threads) are out of scope.
 /// </summary>
 public sealed class CodexProvider : ISessionProvider
 {
